@@ -28,6 +28,12 @@ export interface Credentials {
   readonly password: string;
 }
 
+// The inbox is a separate application with its own account. The recipient identifies
+// which user's email to open; it is not assumed to be the dentist application's username.
+export interface OtpSourceCredentials extends Credentials {
+  readonly recipientEmail: string;
+}
+
 // Helpers without export are used only inside this file. A return type of never means
 // this function always throws an error instead of returning a normal value.
 // Errors name the setting to fix without printing its potentially sensitive value.
@@ -157,12 +163,31 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FrameworkConfi
 }
 
 /**
- * The test's beforeAll hook calls this during execution, before browser fixtures start.
- * Listing tests may use placeholders; actually opening an application may not.
+ * Validate application addresses during execution, not discovery. A password-only
+ * login needs only the primary URL; defer the inbox URL check until OTP is requested.
+ * Existing callers still validate both URLs when they omit the options argument.
  */
-export function assertApplicationConfigured(config: FrameworkConfig): void {
+export function assertApplicationConfigured(
+  config: FrameworkConfig,
+  options: { requireOtpSource?: boolean } = {},
+): void {
   applicationURL(config.loginURL, 'loginURL / BASE_URL', false);
-  applicationURL(config.otpURL, 'otpURL / OTP_URL', false);
+  if (options.requireOtpSource ?? true) {
+    applicationURL(config.otpURL, 'otpURL / OTP_URL', false);
+  }
+}
+
+// Both applications use the same environment key, but separate credential fields.
+// This helper reads the private file only when an execution-time loader needs it.
+function readCredentialProfile(environment: string): Record<string, unknown> {
+  const localFile = resolve(__dirname, 'credentials.local.json');
+  const filename = existsSync(localFile) ? localFile : resolve(__dirname, 'credentials.example.json');
+  const source = readObject(filename);
+  const profile = source[environment];
+  if (!isObject(profile)) {
+    return invalid('The selected environment requires credentials in config/credentials.local.json.');
+  }
+  return profile;
 }
 
 /**
@@ -179,15 +204,7 @@ export function loadCredentials(
   // If both secret environment variables exist, no credential file is needed.
   // With only one override, the missing value is taken from the selected file section.
   if (env.APP_USERNAME === undefined || env.APP_PASSWORD === undefined) {
-    const localFile = resolve(__dirname, 'credentials.local.json');
-    // Prefer the ignored private file. The committed example is only a placeholder template.
-    const filename = existsSync(localFile) ? localFile : resolve(__dirname, 'credentials.example.json');
-    const source = readObject(filename);
-    const profile = source[environment];
-    if (!isObject(profile)) {
-      return invalid('The selected environment requires username and password in config/credentials.local.json.');
-    }
-    stored = profile;
+    stored = readCredentialProfile(environment);
   }
   // The selected JSON key must match TEST_ENV/framework.json's environment value.
   // Never print these variables, put them in test names, or add them to report metadata.
@@ -197,4 +214,36 @@ export function loadCredentials(
     return invalid('Copy config/credentials.example.json to config/credentials.local.json and replace its placeholders, or set APP_USERNAME and APP_PASSWORD.');
   }
   return { username, password };
+}
+
+/** Resolve the back-office account and intended email recipient during execution. */
+export function loadOtpSourceCredentials(
+  environment: string,
+  env: NodeJS.ProcessEnv = process.env,
+): OtpSourceCredentials {
+  let stored: Record<string, unknown> = {};
+  // CI may provide all three values. Partial overrides use the matching private-file fields.
+  if (
+    env.OTP_SOURCE_USERNAME === undefined ||
+    env.OTP_SOURCE_PASSWORD === undefined ||
+    env.OTP_RECIPIENT_EMAIL === undefined
+  ) {
+    const profile = readCredentialProfile(environment);
+    if (!isObject(profile.otpSource)) {
+      return invalid('Add otpSource.username, otpSource.password, and otpSource.recipientEmail under the selected environment in config/credentials.local.json.');
+    }
+    stored = profile.otpSource;
+  }
+
+  const username = nonblank(env.OTP_SOURCE_USERNAME ?? stored.username, 'otpSource.username / OTP_SOURCE_USERNAME');
+  const password = nonblank(env.OTP_SOURCE_PASSWORD ?? stored.password, 'otpSource.password / OTP_SOURCE_PASSWORD');
+  const recipientEmail = nonblank(env.OTP_RECIPIENT_EMAIL ?? stored.recipientEmail, 'otpSource.recipientEmail / OTP_RECIPIENT_EMAIL');
+  if ([username, password, recipientEmail].some(isPlaceholder)) {
+    return invalid('Replace the otpSource placeholders in config/credentials.local.json, or set OTP_SOURCE_USERNAME, OTP_SOURCE_PASSWORD, and OTP_RECIPIENT_EMAIL.');
+  }
+  // Validate the address without including it in an exception, test title, or locator string.
+  if (recipientEmail !== recipientEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
+    return invalid('otpSource.recipientEmail / OTP_RECIPIENT_EMAIL must be a valid email address without surrounding spaces.');
+  }
+  return { username, password, recipientEmail };
 }

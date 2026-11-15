@@ -3,17 +3,17 @@
   "browser": "chromium",
   "headless": true,
   "workers": 1,
-  "testTimeoutMs": 60000,
+  "testTimeoutMs": 180000,
   "trace": false,
-  "otpPattern": "\\b\\d{6}\\b",
+  "otpPattern": "Please\\s+enter\\s+the\\s+following\\s+code\\s+on\\s+your\\s+screen\\s*:\\s*([A-Za-z0-9]+)\\b",
   "environments": {
     "local": {
-      "loginURL": "REPLACE_WITH_LOGIN_URL",
-      "otpURL": "REPLACE_WITH_OTP_SOURCE_URL"
+      "loginURL": "",
+      "otpURL": ""
     },
     "qa": {
-      "loginURL": "REPLACE_WITH_LOGIN_URL",
-      "otpURL": "REPLACE_WITH_OTP_SOURCE_URL"
+      "loginURL": "",
+      "otpURL": ""
     }
   }
 }

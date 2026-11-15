@@ -1,64 +1,103 @@
-// "import type" gives TypeScript information without creating extra runtime objects.
+// Type-only imports describe Playwright objects; importing them does not launch a browser.
 import type { Locator, Page } from '@playwright/test';
-// Shared browser operations live in core; application-specific element names live here.
 import { BrowserActions } from '../core/browser-actions';
-import { loginLocators } from './locators';
+import { loginSelectors } from './locators';
 
-// An interface describes the shape of the value a caller must supply.
-// "readonly" prevents this page object from changing the supplied credential properties.
-interface LoginCredentials {
-  readonly username: string;
-  readonly password: string;
-}
+// The application decides whether its existing authentication session still needs OTP.
+// pending/ambiguous are temporary states that the spec must keep polling, not skip as success.
+export type AuthenticationState = 'pending' | 'otp-required' | 'authenticated' | 'ambiguous';
 
 /**
- * A page object groups the application's locators and user actions in one place.
- * It performs actions; the test decides whether the resulting screen is correct.
+ * Actions for Delta Dental's multi-page Dentist sign-in flow.
+ * Each named method performs one phase; expected outcomes stay in the test.
+ * The same Page reference survives navigation through the successive login screens.
  */
 export class LoginPage {
-  // A Locator is a reusable recipe for finding an element, not a stored DOM element.
-  // Playwright resolves it again when an action/assertion runs, including after navigation.
+  readonly dentistLink: Locator;
+  readonly headerSignIn: Locator;
+  readonly initialUsername: Locator;
+  readonly continueButton: Locator;
   readonly username: Locator;
+  readonly nextButton: Locator;
   readonly password: Locator;
-  readonly loginButton: Locator;
-  readonly otpPageMarker: Locator;
+  readonly signInButton: Locator;
+  readonly emailRadio: Locator;
+  readonly generateOtpButton: Locator;
   readonly otpInput: Locator;
-  readonly validateButton: Locator;
+  readonly otpLoginButton: Locator;
   readonly loggedInMarker: Locator;
-  // "private" means callers use the page's named actions instead of this internal helper.
   private readonly actions: BrowserActions;
 
-  // The fixture supplies the original application's Page (one browser tab).
   constructor(page: Page) {
     this.actions = new BrowserActions(page);
-    // getByTestId('name') normally finds an element with data-testid="name".
-    // The strings come from locators.ts, so replacing a test ID has one edit location.
-    this.username = page.getByTestId(loginLocators.username);
-    this.password = page.getByTestId(loginLocators.password);
-    this.loginButton = page.getByTestId(loginLocators.loginButton);
-    this.otpPageMarker = page.getByTestId(loginLocators.otpPageMarker);
-    this.otpInput = page.getByTestId(loginLocators.otpInput);
-    this.validateButton = page.getByTestId(loginLocators.validateButton);
-    this.loggedInMarker = page.getByTestId(loginLocators.loggedInMarker);
+    // IDs and the supplied href/test attribute identify elements without positional selectors.
+    // Locators are resolved again on each action, so navigation does not require element handles.
+    this.dentistLink = page.locator(loginSelectors.dentistLink);
+    this.headerSignIn = page.locator(loginSelectors.headerSignIn);
+    this.initialUsername = page.locator(loginSelectors.initialUsername);
+    this.continueButton = page.locator(loginSelectors.continueButton);
+    this.username = page.locator(loginSelectors.username);
+    this.nextButton = page.locator(loginSelectors.nextButton);
+    this.password = page.locator(loginSelectors.password);
+    this.signInButton = page.locator(loginSelectors.signInButton);
+    this.emailRadio = page.locator(loginSelectors.emailRadio);
+    this.generateOtpButton = page.locator(loginSelectors.generateOtpButton);
+    this.otpInput = page.locator(loginSelectors.otpInput);
+    this.otpLoginButton = page.locator(loginSelectors.otpLoginButton);
+    this.loggedInMarker = page.locator(loginSelectors.loggedInMarker);
   }
 
-  // async returns a Promise; await waits for navigation before the next test action.
-  // Promise<void> means completion is returned, without an additional result value.
   async open(url: string): Promise<void> {
     await this.actions.goto(url);
   }
 
-  // Values are supplied at execution time, never embedded in locators or test titles.
-  async submitCredentials(credentials: LoginCredentials): Promise<void> {
-    await this.actions.enterSensitiveValue(this.username, credentials.username);
-    await this.actions.enterSensitiveValue(this.password, credentials.password);
-    await this.actions.click(this.loginButton);
+  // The public home page precedes the application authentication screens.
+  async openDentistSignIn(): Promise<void> {
+    await this.actions.click(this.dentistLink);
+    await this.actions.click(this.headerSignIn);
   }
 
-  // This Page is still the original tab even while another browser reads the OTP.
-  // The test checks the logged-in screen after this action completes.
-  async enterOtpAndValidate(otp: string): Promise<void> {
+  async submitInitialUsername(username: string): Promise<void> {
+    // Sensitive entry avoids putting the username in value-bearing report action titles.
+    await this.actions.enterSensitiveValue(this.initialUsername, username);
+    await this.actions.click(this.continueButton);
+  }
+
+  // The identity-provider screen asks for the same username again after Continue.
+  async submitUsername(username: string): Promise<void> {
+    await this.actions.enterSensitiveValue(this.username, username);
+    await this.actions.click(this.nextButton);
+  }
+
+  async submitPassword(password: string): Promise<void> {
+    await this.actions.enterSensitiveValue(this.password, password);
+    await this.actions.click(this.signInButton);
+  }
+
+  async authenticationState(): Promise<AuthenticationState> {
+    // These are immediate observations. The spec retries them until exactly one outcome appears.
+    // Do not cache a local 30-minute timer: the application's current screen is authoritative.
+    const [otpVisible, authenticatedVisible] = await Promise.all([
+      this.emailRadio.isVisible(),
+      this.loggedInMarker.isVisible(),
+    ]);
+
+    if (otpVisible && authenticatedVisible) return 'ambiguous';
+    if (otpVisible) return 'otp-required';
+    if (authenticatedVisible) return 'authenticated';
+    return 'pending';
+  }
+
+  async requestEmailOtp(): Promise<void> {
+    // check() chooses the radio's checked state and uses Playwright's built-in waiting.
+    // Configure emailRadio to identify the actual radio control before using this action.
+    await this.emailRadio.check();
+    await this.actions.click(this.generateOtpButton);
+  }
+
+  async enterOtpAndLogin(otp: string): Promise<void> {
+    // This is still the original application browser after the separate inbox browser closes.
     await this.actions.enterSensitiveValue(this.otpInput, otp);
-    await this.actions.click(this.validateButton);
+    await this.actions.click(this.otpLoginButton);
   }
 }
