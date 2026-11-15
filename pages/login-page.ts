@@ -58,19 +58,19 @@ export class LoginPage {
   }
 
   async submitInitialUsername(username: string): Promise<void> {
-    // Sensitive entry avoids putting the username in value-bearing report action titles.
-    await this.actions.enterSensitiveValue(this.initialUsername, username);
+    // Standard fill waits for an editable field and replaces its current value.
+    await this.actions.fill(this.initialUsername, username);
     await this.actions.click(this.continueButton);
   }
 
   // The identity-provider screen asks for the same username again after Continue.
   async submitUsername(username: string): Promise<void> {
-    await this.actions.enterSensitiveValue(this.username, username);
+    await this.actions.fill(this.username, username);
     await this.actions.click(this.nextButton);
   }
 
   async submitPassword(password: string): Promise<void> {
-    await this.actions.enterSensitiveValue(this.password, password);
+    await this.actions.fill(this.password, password);
     await this.actions.click(this.signInButton);
   }
 
@@ -97,7 +97,7 @@ export class LoginPage {
 
   async enterOtpAndLogin(otp: string): Promise<void> {
     // This is still the original application browser after the separate inbox browser closes.
-    await this.actions.enterSensitiveValue(this.otpInput, otp);
+    await this.actions.fill(this.otpInput, otp);
     await this.actions.click(this.otpLoginButton);
   }
 }

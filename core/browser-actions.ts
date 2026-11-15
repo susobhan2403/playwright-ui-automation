@@ -3,7 +3,6 @@
 // A BrowserContext is an isolated session with its own cookies; a Page is a tab in that session.
 // A Locator describes how Playwright should find an element when an action is performed.
 import type { Browser, BrowserType, Locator, Page } from '@playwright/test';
-import { enterSensitiveValue } from '../utils/sensitive-input';
 
 /** Shared browser actions; page objects keep application-specific locators. */
 export class BrowserActions {
@@ -23,10 +22,10 @@ export class BrowserActions {
     await locator.click();
   }
 
-  // Credential and OTP entry share one utility. They are not printed in custom action titles.
-  // Core contains browser operations; utils contains the reusable input implementation.
-  async enterSensitiveValue(locator: Locator, value: string): Promise<void> {
-    await enterSensitiveValue(locator, value);
+  // Native fill() waits for editability, replaces the value, and emits normal input events.
+  // Playwright also handles labels associated with input fields.
+  async fill(locator: Locator, value: string): Promise<void> {
+    await locator.fill(value);
   }
 }
 

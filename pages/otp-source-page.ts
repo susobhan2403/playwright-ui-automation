@@ -54,8 +54,8 @@ export class OtpSourcePage {
   // The OTP service has its own account; do not assume application credentials work here.
   async signIn(credentials: Credentials): Promise<void> {
     await this.actions.click(this.signInButton);
-    await this.actions.enterSensitiveValue(this.username, credentials.username);
-    await this.actions.enterSensitiveValue(this.password, credentials.password);
+    await this.actions.fill(this.username, credentials.username);
+    await this.actions.fill(this.password, credentials.password);
     await this.actions.click(this.loginButton);
   }
 
@@ -72,9 +72,8 @@ export class OtpSourcePage {
   }
 
   async filterByRecipient(recipientEmail: string): Promise<void> {
-    // Email addresses may also be usernames. Keep them out of fill action titles.
-    // Input/change events trigger the application's normal filter/debounce behavior.
-    await this.actions.enterSensitiveValue(this.recipientSearch, recipientEmail);
+    // Standard fill replaces the search text and emits the input event for filtering.
+    await this.actions.fill(this.recipientSearch, recipientEmail);
     // Some Angular inputs bind filtering to keyup instead of input/change. End emits
     // a harmless key event without putting the recipient address into a key action title.
     await this.recipientSearch.press('End');
