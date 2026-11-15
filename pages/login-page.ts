@@ -32,7 +32,7 @@ export class LoginPage {
     this.actions = new BrowserActions(page);
     // IDs and the supplied href/test attribute identify elements without positional selectors.
     // Locators are resolved again on each action, so navigation does not require element handles.
-    this.dentistLink = page.locator(loginSelectors.dentistLink);
+    this.dentistLink = page.locator(loginSelectors.dentistLink).first();
     this.headerSignIn = page.locator(loginSelectors.headerSignIn);
     this.initialUsername = page.locator(loginSelectors.initialUsername);
     this.continueButton = page.locator(loginSelectors.continueButton);
@@ -59,17 +59,20 @@ export class LoginPage {
 
   async submitInitialUsername(username: string): Promise<void> {
     // Sensitive entry avoids putting the username in value-bearing report action titles.
+    await this.actions.click(this.initialUsername);
     await this.actions.enterSensitiveValue(this.initialUsername, username);
     await this.actions.click(this.continueButton);
   }
 
   // The identity-provider screen asks for the same username again after Continue.
   async submitUsername(username: string): Promise<void> {
+    await this.actions.click(this.username);
     await this.actions.enterSensitiveValue(this.username, username);
     await this.actions.click(this.nextButton);
   }
 
   async submitPassword(password: string): Promise<void> {
+    await this.actions.click(this.password);
     await this.actions.enterSensitiveValue(this.password, password);
     await this.actions.click(this.signInButton);
   }

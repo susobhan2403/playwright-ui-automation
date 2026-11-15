@@ -6,8 +6,8 @@
  */
 export const loginSelectors = {
   dentistLink: 'a[href="/dentist"]',
-  headerSignIn: '[data-test-id="HeaderSignInButton"]',
-  initialUsername: '#lblUserName',
+  headerSignIn: 'span[data-test-id="HeaderSignInButton"]',
+  initialUsername: '#lblUsername',
   continueButton: '#checkUsernameButton',
   username: '#usernameInput',
   nextButton: '#verify-user',
