@@ -1,0 +1,19 @@
+{
+  "environment": "local",
+  "browser": "chromium",
+  "headless": true,
+  "workers": 1,
+  "testTimeoutMs": 60000,
+  "trace": false,
+  "otpPattern": "\\b\\d{6}\\b",
+  "environments": {
+    "local": {
+      "loginURL": "REPLACE_WITH_LOGIN_URL",
+      "otpURL": "REPLACE_WITH_OTP_SOURCE_URL"
+    },
+    "qa": {
+      "loginURL": "REPLACE_WITH_LOGIN_URL",
+      "otpURL": "REPLACE_WITH_OTP_SOURCE_URL"
+    }
+  }
+}
