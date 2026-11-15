@@ -96,6 +96,7 @@ export class LoginPage {
   }
 
   async enterOtpAndLogin(otp: string): Promise<void> {
+    //await this.actions.page.waitForTimeout(1000000);
     // This is still the original application browser after the separate inbox browser closes.
     await this.actions.fill(this.otpInput, otp);
     await this.actions.click(this.otpLoginButton);

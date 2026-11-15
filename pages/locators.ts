@@ -17,9 +17,9 @@ export const loginSelectors = {
   emailRadio: 'input[value="EMAIL"]',
   generateOtpButton: '.btn',
   // The OTP field and successful-login marker were not supplied; do not guess their IDs.
-  otpInput: 'REPLACE_WITH_OTP_INPUT_SELECTOR',
-  otpLoginButton: 'REPLACE_WITH_OTP_LOGIN_BUTTON_SELECTOR',
-  loggedInMarker: 'REPLACE_WITH_LOGGED_IN_MARKER_SELECTOR',
+  otpInput: 'input#_r_3_',
+  otpLoginButton: 'button[type="submit"]',
+  loggedInMarker: '.dashBoardHeaderAccount',
 } as const;
 
 /**

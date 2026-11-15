@@ -32,7 +32,7 @@ export class OtpSourcePage {
     this.loginButton = page.locator(otpSourceSelectors.loginButton);
     // Exact text avoids matching a longer menu label containing the same words.
     this.authServiceMenu = page.getByText(otpSourceSelectors.authServiceText, { exact: true });
-    this.inboxMenu = page.getByText(otpSourceSelectors.inboxText, { exact: true });
+    this.inboxMenu = page.getByText(otpSourceSelectors.inboxText, { exact: true }).first();
     this.recipientSearch = page.getByPlaceholder(
       otpSourceSelectors.recipientSearchPlaceholder,
       { exact: true },
@@ -63,9 +63,7 @@ export class OtpSourcePage {
     await this.authServiceMenu.waitFor({ state: 'visible' });
     // A deep link or saved menu state can already have this section expanded.
     // Avoid toggling an open section closed before attempting to click Inbox.
-    if (!(await this.inboxMenu.isVisible())) {
-      await this.actions.click(this.authServiceMenu);
-    }
+    await this.actions.click(this.authServiceMenu);
     await this.actions.click(this.inboxMenu);
     await this.resultsTable.waitFor({ state: 'visible' });
     await this.recipientSearch.waitFor({ state: 'visible' });
