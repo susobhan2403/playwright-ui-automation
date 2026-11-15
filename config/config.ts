@@ -63,7 +63,7 @@ function readObject(filename: string): Record<string, unknown> {
   return data;
 }
 
-// Required text must really be a string and contain something other than spaces.
+// The environment key must be a string containing something other than spaces.
 // trim is used only to check emptiness; the original value is returned unchanged.
 function nonblank(value: unknown, name: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
@@ -93,30 +93,11 @@ function positiveInteger(value: unknown, name: string): number {
   return number;
 }
 
-// REPLACE_ values are instructions for the person configuring this checkout, not real data.
-function isPlaceholder(value: string): boolean {
-  return value.startsWith('REPLACE_');
-}
-
-// Discovery must be able to list tests before application details are filled in.
-// allowPlaceholder=true permits that; the execution readiness check uses false instead.
-// A real address must be an absolute HTTP(S) URL, and credentials must not be embedded in it.
-function applicationURL(value: unknown, name: string, allowPlaceholder: boolean): string {
-  const text = nonblank(value, name);
-  if (isPlaceholder(text)) {
-    if (allowPlaceholder) return text;
-    return invalid(`Set ${name} in config/framework.json before running the login test.`);
-  }
-  let url: URL;
-  try {
-    url = new URL(text);
-  } catch {
-    return invalid(`${name} must be an absolute HTTP(S) URL.`);
-  }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
-    return invalid(`${name} must be an HTTP(S) URL without embedded credentials.`);
-  }
-  return url.href;
+// App inputs are parsed as strings only. The normal browser/OTP actions consume them
+// when reached, so unfinished values do not add a separate setup/readiness gate.
+function stringSetting(value: unknown, name: string): string {
+  if (typeof value !== 'string') return invalid(`${name} must be a string.`);
+  return value;
 }
 
 /**
@@ -128,7 +109,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FrameworkConfi
   // __dirname is this file's directory, so loading works independently of the shell location.
   const source = readObject(resolve(__dirname, 'framework.json'));
   // ?? means "use the right-hand value only if the left-hand value is null or undefined".
-  // Environment variables override JSON. An explicitly blank override is rejected, not ignored.
+  // Environment variables override JSON. The environment name must still select a profile.
   const environment = nonblank(env.TEST_ENV ?? source.environment, 'environment / TEST_ENV');
   if (!isObject(source.environments)) return invalid('framework.json requires environments.');
   // Use the selected environment name as a key, such as environments['qa'].
@@ -139,15 +120,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FrameworkConfi
   if (browser !== 'chromium' && browser !== 'firefox' && browser !== 'webkit') {
     return invalid('browser / BROWSER must be chromium, firefox, or webkit.');
   }
-  // Constructing RegExp checks the pattern's syntax now; it does not read an OTP yet.
-  const otpPattern = nonblank(source.otpPattern, 'otpPattern');
-  try {
-    new RegExp(otpPattern);
-  } catch {
-    return invalid('otpPattern must be a valid regular expression.');
-  }
+  // The OTP action interprets this pattern only if that branch is actually used.
+  const otpPattern = stringSetting(source.otpPattern, 'otpPattern');
 
-  // Return one validated settings object. Each override is checked before Playwright uses it.
+  // Return typed settings. Execution options are validated; app input strings pass through unchanged.
   // The profile supplies the selected environment's URLs; shared settings come from the top level.
   return {
     environment,
@@ -156,25 +132,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FrameworkConfi
     workers: positiveInteger(source.workers, 'workers'),
     testTimeoutMs: positiveInteger(env.TEST_TIMEOUT_MS ?? source.testTimeoutMs, 'testTimeoutMs / TEST_TIMEOUT_MS'),
     trace: booleanSetting(env.QA_TRACE ?? source.trace, 'trace / QA_TRACE') ? 'retain-on-failure' : 'off',
-    loginURL: applicationURL(env.BASE_URL ?? profile.loginURL, 'loginURL / BASE_URL', true),
-    otpURL: applicationURL(env.OTP_URL ?? profile.otpURL, 'otpURL / OTP_URL', true),
+    loginURL: stringSetting(env.BASE_URL ?? profile.loginURL, 'loginURL / BASE_URL'),
+    otpURL: stringSetting(env.OTP_URL ?? profile.otpURL, 'otpURL / OTP_URL'),
     otpPattern,
   };
-}
-
-/**
- * Validate application addresses during execution, not discovery. A password-only
- * login needs only the primary URL; defer the inbox URL check until OTP is requested.
- * Existing callers still validate both URLs when they omit the options argument.
- */
-export function assertApplicationConfigured(
-  config: FrameworkConfig,
-  options: { requireOtpSource?: boolean } = {},
-): void {
-  applicationURL(config.loginURL, 'loginURL / BASE_URL', false);
-  if (options.requireOtpSource ?? true) {
-    applicationURL(config.otpURL, 'otpURL / OTP_URL', false);
-  }
 }
 
 // Both applications use the same environment key, but separate credential fields.
@@ -208,11 +169,8 @@ export function loadCredentials(
   }
   // The selected JSON key must match TEST_ENV/framework.json's environment value.
   // Never print these variables, put them in test names, or add them to report metadata.
-  const username = nonblank(env.APP_USERNAME ?? stored.username, 'credentials.username / APP_USERNAME');
-  const password = nonblank(env.APP_PASSWORD ?? stored.password, 'credentials.password / APP_PASSWORD');
-  if (isPlaceholder(username) || isPlaceholder(password)) {
-    return invalid('Copy config/credentials.example.json to config/credentials.local.json and replace its placeholders, or set APP_USERNAME and APP_PASSWORD.');
-  }
+  const username = stringSetting(env.APP_USERNAME ?? stored.username, 'credentials.username / APP_USERNAME');
+  const password = stringSetting(env.APP_PASSWORD ?? stored.password, 'credentials.password / APP_PASSWORD');
   return { username, password };
 }
 
@@ -235,15 +193,8 @@ export function loadOtpSourceCredentials(
     stored = profile.otpSource;
   }
 
-  const username = nonblank(env.OTP_SOURCE_USERNAME ?? stored.username, 'otpSource.username / OTP_SOURCE_USERNAME');
-  const password = nonblank(env.OTP_SOURCE_PASSWORD ?? stored.password, 'otpSource.password / OTP_SOURCE_PASSWORD');
-  const recipientEmail = nonblank(env.OTP_RECIPIENT_EMAIL ?? stored.recipientEmail, 'otpSource.recipientEmail / OTP_RECIPIENT_EMAIL');
-  if ([username, password, recipientEmail].some(isPlaceholder)) {
-    return invalid('Replace the otpSource placeholders in config/credentials.local.json, or set OTP_SOURCE_USERNAME, OTP_SOURCE_PASSWORD, and OTP_RECIPIENT_EMAIL.');
-  }
-  // Validate the address without including it in an exception, test title, or locator string.
-  if (recipientEmail !== recipientEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail)) {
-    return invalid('otpSource.recipientEmail / OTP_RECIPIENT_EMAIL must be a valid email address without surrounding spaces.');
-  }
+  const username = stringSetting(env.OTP_SOURCE_USERNAME ?? stored.username, 'otpSource.username / OTP_SOURCE_USERNAME');
+  const password = stringSetting(env.OTP_SOURCE_PASSWORD ?? stored.password, 'otpSource.password / OTP_SOURCE_PASSWORD');
+  const recipientEmail = stringSetting(env.OTP_RECIPIENT_EMAIL ?? stored.recipientEmail, 'otpSource.recipientEmail / OTP_RECIPIENT_EMAIL');
   return { username, password, recipientEmail };
 }

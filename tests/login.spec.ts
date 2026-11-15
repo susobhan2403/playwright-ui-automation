@@ -1,22 +1,13 @@
 import {
-  assertApplicationConfigured,
   loadConfig,
   loadCredentials,
   loadOtpSourceCredentials,
 } from '../config/config';
 import { expect, test } from '../hooks/test';
 import type { AuthenticationState } from '../pages/login-page';
-import { assertLocatorsConfigured } from '../pages/locators';
 
 // Discovery reads only non-secret settings. Secrets are resolved during execution.
 const config = loadConfig();
-
-test.beforeAll(() => {
-  // Inbox settings are needed only if the application actually requests another OTP.
-  assertApplicationConfigured(config, { requireOtpSource: false });
-  assertLocatorsConfigured('login');
-  loadCredentials(config.environment);
-});
 
 test('LOGIN-001: Dentist signs in with OTP only when required', {
   tag: ['@smoke', '@regression'],
@@ -61,10 +52,7 @@ test('LOGIN-001: Dentist signs in with OTP only when required', {
   );
 
   if (authenticationState === 'otp-required') {
-    // Validate this branch before generating an email. A direct login never needs
-    // inbox credentials, the OTP-only selectors, or a second browser.
-    assertApplicationConfigured(config);
-    assertLocatorsConfigured('otp');
+    // Resolve the separate inbox account only when the application requests an OTP.
     const inboxAccount = loadOtpSourceCredentials(config.environment);
 
     await test.step('Choose Email and generate the OTP', async () => {

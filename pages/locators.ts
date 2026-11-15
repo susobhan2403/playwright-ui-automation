@@ -40,30 +40,3 @@ export const otpSourceSelectors = {
 
 // Anchor OTP extraction to the email's instruction, rather than unrelated numbers in the body.
 export const OTP_EMAIL_PREFIX = 'Please enter the following code on your screen:';
-
-type LoginSelectorName = keyof typeof loginSelectors;
-const otpOnlySelectors: ReadonlySet<LoginSelectorName> = new Set([
-  'generateOtpButton',
-  'otpInput',
-  'otpLoginButton',
-]);
-
-// The normal login phase needs both outcome markers to distinguish OTP from direct success.
-// OTP-only controls are validated only after the application actually requests an OTP.
-// Defaulting to all preserves the existing full-configuration check for other callers.
-export function assertLocatorsConfigured(phase: 'all' | 'login' | 'otp' = 'all'): void {
-  const missing = Object.entries(loginSelectors)
-    .filter(([name]) => {
-      const otpOnly = otpOnlySelectors.has(name as LoginSelectorName);
-      if (phase === 'all') return true;
-      return phase === 'otp' ? otpOnly : !otpOnly;
-    })
-    .filter(([, selector]) => !selector.trim() || selector.startsWith('REPLACE_WITH_'))
-    .map(([name]) => name);
-
-  if (missing.length > 0) {
-    throw new Error(
-      `Configure the remaining selectors in pages/locators.ts before running the login test: ${missing.join(', ')}.`,
-    );
-  }
-}
