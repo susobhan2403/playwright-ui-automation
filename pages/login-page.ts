@@ -76,7 +76,7 @@ export class LoginPage {
 
   async authenticationState(): Promise<AuthenticationState> {
     // These are immediate observations. The spec retries them until exactly one outcome appears.
-    // Do not cache a local 30-minute timer: the application's current screen is authoritative.
+    // Do not cache a local 30-minute timer: the application's current screen is authoritative. // Wait for a short period to allow the page to update OTP and authentication states
     const [otpVisible, authenticatedVisible] = await Promise.all([
       this.emailRadio.isVisible(),
       this.loggedInMarker.isVisible(),
@@ -91,7 +91,7 @@ export class LoginPage {
   async requestEmailOtp(): Promise<void> {
     // check() chooses the radio's checked state and uses Playwright's built-in waiting.
     // Configure emailRadio to identify the actual radio control before using this action.
-    await this.emailRadio.check();
+    await this.actions.click(this.emailRadio);
     await this.actions.click(this.generateOtpButton);
   }
 

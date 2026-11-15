@@ -14,8 +14,8 @@ export const loginSelectors = {
   password: '#passwordInput',
   signInButton: '#verify-pass',
   // Replace with the actual radio input/role=radio element, not its decorative wrapper.
-  emailRadio: 'REPLACE_WITH_EMAIL_RADIO_SELECTOR',
-  generateOtpButton: 'REPLACE_WITH_GENERATE_OTP_BUTTON_SELECTOR',
+  emailRadio: 'input[value="EMAIL"]',
+  generateOtpButton: '.btn',
   // The OTP field and successful-login marker were not supplied; do not guess their IDs.
   otpInput: 'REPLACE_WITH_OTP_INPUT_SELECTOR',
   otpLoginButton: 'REPLACE_WITH_OTP_LOGIN_BUTTON_SELECTOR',
